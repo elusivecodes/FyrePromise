@@ -259,6 +259,7 @@ class Promise
     /**
      * Poll the child process to determine if the Promise has settled.
      * @return bool TRUE if the Promise has settled, otherwise FALSE.
+     * @throws RuntimeException if there is a problem handling the child process.
      */
     public function poll(): bool
     {
