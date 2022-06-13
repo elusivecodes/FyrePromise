@@ -168,7 +168,7 @@ $promise = Promise::reject($reason);
 
 **Resolve**
 
-Create a *Promise* that resolved.
+Create a *Promise* that resolves.
 
 - `$value` is the resolved value, and will default to *null*.
 
