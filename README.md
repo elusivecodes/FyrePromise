@@ -1,6 +1,6 @@
 # FyrePromise
 
-**FyrePromise** is a free, promise library for *PHP*.
+**FyrePromise** is a free, opens-source promise library for *PHP*.
 
 
 ## Table Of Contents

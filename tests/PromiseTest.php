@@ -3,11 +3,10 @@ declare(strict_types=1);
 
 namespace Tests;
 
-use
-    Closure,
-    Fyre\Promise\Promise,
-    PHPUnit\Framework\TestCase,
-    RuntimeException;
+use Closure;
+use Fyre\Promise\Promise;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class PromiseTest extends TestCase
 {

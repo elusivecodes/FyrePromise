@@ -3,38 +3,35 @@ declare(strict_types=1);
 
 namespace Fyre\Promise;
 
-use
-    Closure,
-    RuntimeException,
-    Socket,
-    Throwable;
+use Closure;
+use RuntimeException;
+use Socket;
+use Throwable;
 
-use const
-    AF_UNIX,
-    SIGKILL,
-    SOCK_STREAM,
-    WNOHANG,
-    WUNTRACED;
+use const AF_UNIX;
+use const SIGKILL;
+use const SOCK_STREAM;
+use const WNOHANG;
+use const WUNTRACED;
 
-use function
-    array_fill,
-    call_user_func,
-    count,
-    pcntl_async_signals,
-    pcntl_fork,
-    pcntl_waitpid,
-    pcntl_wifstopped,
-    posix_get_last_error,
-    posix_kill,
-    posix_strerror,
-    serialize,
-    socket_close,
-    socket_create_pair,
-    socket_read,
-    socket_write,
-    time,
-    unserialize,
-    usleep;
+use function array_fill;
+use function call_user_func;
+use function count;
+use function pcntl_async_signals;
+use function pcntl_fork;
+use function pcntl_waitpid;
+use function pcntl_wifstopped;
+use function posix_get_last_error;
+use function posix_kill;
+use function posix_strerror;
+use function serialize;
+use function socket_close;
+use function socket_create_pair;
+use function socket_read;
+use function socket_write;
+use function time;
+use function unserialize;
+use function usleep;
 
 /**
  * Promise
