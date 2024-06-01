@@ -270,7 +270,7 @@ class Promise
             if ($this->startTime + $this->maxRunTime < time() || pcntl_wifstopped($status)) {
                 if (!posix_kill($this->pid, SIGKILL)) {
                     $lastError = posix_get_last_error();
-                    $lastErrorString = posix_strerror();
+                    $lastErrorString = posix_strerror($lastError);
                     throw new RuntimeException('Failed to kill '.$this->pid.' - '.$lastErrorString);
                 }
             }
