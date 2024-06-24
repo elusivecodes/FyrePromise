@@ -8,12 +8,6 @@ use RuntimeException;
 use Socket;
 use Throwable;
 
-use const AF_UNIX;
-use const SIGKILL;
-use const SOCK_STREAM;
-use const WNOHANG;
-use const WUNTRACED;
-
 use function array_fill;
 use function call_user_func;
 use function count;
@@ -33,109 +27,35 @@ use function time;
 use function unserialize;
 use function usleep;
 
+use const AF_UNIX;
+use const SIGKILL;
+use const SOCK_STREAM;
+use const WNOHANG;
+use const WUNTRACED;
+
 /**
  * Promise
  */
 class Promise
 {
-
     protected Closure $callback;
-
-    protected Socket $socket;
-
-    protected int $pid;
-    protected int $startTime;
-    protected int $maxRunTime = 300;
+    protected array $finallyCallbacks = [];
 
     protected array $fulfilledCallbacks = [];
-    protected array $rejectedCallbacks = [];
-    protected array $finallyCallbacks = [];
 
     protected bool $isRejected = false;
     protected bool $isResolved = false;
     protected bool $isSettled = false;
+    protected int $maxRunTime = 300;
+
+    protected int $pid;
+    protected array $rejectedCallbacks = [];
 
     protected string|null $rejectedReason = null;
-    protected $resolvedValue = null;
+    protected $resolvedValue;
 
-    /**
-     * Wait for all promises to settle.
-     * @param array $promises The promises.
-     * @return Promise The Promise.
-     */
-    public static function all(array $promises = []): static
-    {
-        return new Promise(function(Closure $resolve, Closure $reject) use ($promises): void {
-            $count = count($promises);
-            $results = array_fill(0, $count, null);
-
-            while ($promises !== []) {
-                foreach ($promises AS $i => $promise) {
-                    $promise->poll();
-
-                    if ($promise->isRejected()) {
-                        $reject($promise->getRejectedReason());
-                        return;
-                    }
-
-                    if ($promise->isResolved()) {
-                        $results[$i] = $promise->getResolvedValue();
-                        unset($promises[$i]);
-                        continue;
-                    }
-                }
-
-                usleep(100000);
-            }
-
-            $resolve($results);
-        }, true);
-    }
-
-    /**
-     * Wait for a Promise to settle.
-     * @param Promise $promise The Promise.
-     * @return mixed The resolved value.
-     * @throws RuntimeException If the Promise is rejected.
-     */
-    public static function await(Promise $promise): mixed
-    {
-        $promise->wait();
-
-        if ($promise->isRejected()) {
-            throw new RuntimeException($promise->getRejectedReason());
-        }
-
-        return $promise->getResolvedValue();
-    }
-
-    /**
-     * Create a Promise that rejects.
-     * @param string|null $reason The rejection reason.
-     * @return Promise The Promise.
-     */
-    public static function reject(string|null $reason = null): static
-    {
-        return new Promise(
-            fn($resolve, $reject) => $reject($reason)
-        );
-    }
-
-    /**
-     * Create a Promise that resolves.
-     * @param mixed $value The resolved value.
-     * @return Promise The Promise.
-     */
-    public static function resolve($value = null): static
-    {
-        if ($value instanceof Promise) {
-            return $value;
-        }
-
-        return new Promise(
-            fn($resolve) => $resolve($value)
-        );
-    }
+    protected Socket $socket;
+    protected int $startTime;
 
     /**
      * New Promise constructor.
@@ -181,6 +101,57 @@ class Promise
         $this->startTime = time();
         $this->pid = $pid;
         $this->socket = $childSocket;
+    }
+
+    /**
+     * Wait for all promises to settle.
+     * @param array $promises The promises.
+     * @return Promise The Promise.
+     */
+    public static function all(array $promises = []): static
+    {
+        return new Promise(function(Closure $resolve, Closure $reject) use ($promises): void {
+            $count = count($promises);
+            $results = array_fill(0, $count, null);
+
+            while ($promises !== []) {
+                foreach ($promises as $i => $promise) {
+                    $promise->poll();
+
+                    if ($promise->isRejected()) {
+                        $reject($promise->getRejectedReason());
+                        return;
+                    }
+
+                    if ($promise->isResolved()) {
+                        $results[$i] = $promise->getResolvedValue();
+                        unset($promises[$i]);
+                        continue;
+                    }
+                }
+
+                usleep(100000);
+            }
+
+            $resolve($results);
+        }, true);
+    }
+
+    /**
+     * Wait for a Promise to settle.
+     * @param Promise $promise The Promise.
+     * @return mixed The resolved value.
+     * @throws RuntimeException If the Promise is rejected.
+     */
+    public static function await(Promise $promise): mixed
+    {
+        $promise->wait();
+
+        if ($promise->isRejected()) {
+            throw new RuntimeException($promise->getRejectedReason());
+        }
+
+        return $promise->getResolvedValue();
     }
 
     /**
@@ -265,7 +236,7 @@ class Promise
         }
 
         $processStatus = pcntl_waitpid($this->pid, $status, WNOHANG | WUNTRACED);
-    
+
         if ($processStatus === 0) {
             if ($this->startTime + $this->maxRunTime < time() || pcntl_wifstopped($status)) {
                 if (!posix_kill($this->pid, SIGKILL)) {
@@ -293,6 +264,34 @@ class Promise
         $this->resolvedValue = $output['resolvedValue'];
 
         return true;
+    }
+
+    /**
+     * Create a Promise that rejects.
+     * @param string|null $reason The rejection reason.
+     * @return Promise The Promise.
+     */
+    public static function reject(string|null $reason = null): static
+    {
+        return new Promise(
+            fn($resolve, $reject) => $reject($reason)
+        );
+    }
+
+    /**
+     * Create a Promise that resolves.
+     * @param mixed $value The resolved value.
+     * @return Promise The Promise.
+     */
+    public static function resolve($value = null): static
+    {
+        if ($value instanceof Promise) {
+            return $value;
+        }
+
+        return new Promise(
+            fn($resolve) => $resolve($value)
+        );
     }
 
     /**
@@ -335,7 +334,7 @@ class Promise
             }
 
             if ($this->isResolved) {
-                foreach ($this->fulfilledCallbacks AS $onFulfilled) {
+                foreach ($this->fulfilledCallbacks as $onFulfilled) {
                     try {
                         if ($this->resolvedValue instanceof Promise) {
                             $this->resolvedValue = static::await($this->resolvedValue);
@@ -353,7 +352,7 @@ class Promise
             }
 
             if ($this->isRejected) {
-                foreach ($this->rejectedCallbacks AS $onRejected) {
+                foreach ($this->rejectedCallbacks as $onRejected) {
                     try {
                         call_user_func($onRejected, $this->rejectedReason);
                     } catch (Throwable $e) {
@@ -362,7 +361,7 @@ class Promise
                 }
             }
 
-            foreach ($this->finallyCallbacks AS $onFinally) {
+            foreach ($this->finallyCallbacks as $onFinally) {
                 call_user_func($onFinally);
             }
         }
@@ -401,5 +400,4 @@ class Promise
             $reject($e->getMessage());
         }
     }
-
 }
