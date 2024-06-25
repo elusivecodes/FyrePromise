@@ -39,26 +39,34 @@ use const WUNTRACED;
 class Promise
 {
     protected Closure $callback;
+
     protected array $finallyCallbacks = [];
 
     protected array $fulfilledCallbacks = [];
 
     protected bool $isRejected = false;
+
     protected bool $isResolved = false;
+
     protected bool $isSettled = false;
+
     protected int $maxRunTime = 300;
 
     protected int $pid;
+
     protected array $rejectedCallbacks = [];
 
     protected string|null $rejectedReason = null;
+
     protected $resolvedValue;
 
     protected Socket $socket;
+
     protected int $startTime;
 
     /**
      * New Promise constructor.
+     *
      * @param Closure $callback The Promise callback.
      * @param bool $sync Whether to execute the Promise synchronously.
      */
@@ -87,7 +95,7 @@ class Promise
                 'isResolved' => $this->isResolved,
                 'isRejected' => $this->isRejected,
                 'resolvedValue' => $this->resolvedValue,
-                'rejectedReason' => $this->rejectedReason
+                'rejectedReason' => $this->rejectedReason,
             ]);
 
             socket_write($parentSocket, $data);
@@ -105,6 +113,7 @@ class Promise
 
     /**
      * Wait for all promises to settle.
+     *
      * @param array $promises The promises.
      * @return Promise The Promise.
      */
@@ -120,12 +129,14 @@ class Promise
 
                     if ($promise->isRejected()) {
                         $reject($promise->getRejectedReason());
+
                         return;
                     }
 
                     if ($promise->isResolved()) {
                         $results[$i] = $promise->getResolvedValue();
                         unset($promises[$i]);
+
                         continue;
                     }
                 }
@@ -139,8 +150,10 @@ class Promise
 
     /**
      * Wait for a Promise to settle.
+     *
      * @param Promise $promise The Promise.
      * @return mixed The resolved value.
+     *
      * @throws RuntimeException If the Promise is rejected.
      */
     public static function await(Promise $promise): mixed
@@ -155,8 +168,37 @@ class Promise
     }
 
     /**
+     * Create a Promise that rejects.
+     *
+     * @param string|null $reason The rejection reason.
+     * @return Promise The Promise.
+     */
+    public static function reject(string|null $reason = null): static
+    {
+        return new Promise(
+            fn($resolve, $reject) => $reject($reason)
+        );
+    }
+
+    /**
+     * Create a Promise that resolves.
+     *
+     * @param mixed $value The resolved value.
+     * @return Promise The Promise.
+     */
+    public static function resolve($value = null): static
+    {
+        if ($value instanceof Promise) {
+            return $value;
+        }
+
+        return new Promise(
+            fn($resolve) => $resolve($value)
+        );
+    }
+
+    /**
      * Execute a callback if the Promise is rejected.
-     * @param Closure $onRejected
      */
     public function catch(Closure $onRejected): static
     {
@@ -165,6 +207,7 @@ class Promise
 
     /**
      * Execute a callback when the Promise is settled.
+     *
      * @param Closure|null $onFinally The settled callback.
      * @return Promise The Promise.
      */
@@ -181,6 +224,7 @@ class Promise
 
     /**
      * Get the rejected reason.
+     *
      * @return string|null The rejected reason.
      */
     public function getRejectedReason(): string|null
@@ -190,6 +234,7 @@ class Promise
 
     /**
      * Get the resolved value.
+     *
      * @return mixed The resolved value.
      */
     public function getResolvedValue(): mixed
@@ -199,6 +244,7 @@ class Promise
 
     /**
      * Determine whether the Promise was rejected.
+     *
      * @return bool TRUE if the Promise was rejected, otherwise FALSE.
      */
     public function isRejected(): bool
@@ -208,6 +254,7 @@ class Promise
 
     /**
      * Determine whether the Promise has resolved.
+     *
      * @return bool TRUE if the Promise has resolved, otherwise FALSE.
      */
     public function isResolved(): bool
@@ -217,6 +264,7 @@ class Promise
 
     /**
      * Determine whether the Promise has settled.
+     *
      * @return bool TRUE if the Promise has settled, otherwise FALSE.
      */
     public function isSettled(): bool
@@ -226,7 +274,9 @@ class Promise
 
     /**
      * Poll the child process to determine if the Promise has settled.
+     *
      * @return bool TRUE if the Promise has settled, otherwise FALSE.
+     *
      * @throws RuntimeException if there is a problem handling the child process.
      */
     public function poll(): bool
@@ -267,35 +317,8 @@ class Promise
     }
 
     /**
-     * Create a Promise that rejects.
-     * @param string|null $reason The rejection reason.
-     * @return Promise The Promise.
-     */
-    public static function reject(string|null $reason = null): static
-    {
-        return new Promise(
-            fn($resolve, $reject) => $reject($reason)
-        );
-    }
-
-    /**
-     * Create a Promise that resolves.
-     * @param mixed $value The resolved value.
-     * @return Promise The Promise.
-     */
-    public static function resolve($value = null): static
-    {
-        if ($value instanceof Promise) {
-            return $value;
-        }
-
-        return new Promise(
-            fn($resolve) => $resolve($value)
-        );
-    }
-
-    /**
      * Execute a callback when the Promise is resolved.
+     *
      * @param Closure|null $onFulfilled The fulfilled callback.
      * @param Closure|null $onRejected The rejected callback.
      * @return Promise The Promise.
@@ -323,6 +346,7 @@ class Promise
 
     /**
      * Wait for the Promise to settle.
+     *
      * @return Promise The Promise.
      */
     public function wait(): static
@@ -330,6 +354,7 @@ class Promise
         while (!$this->isSettled) {
             if (!$this->poll()) {
                 usleep(100000);
+
                 continue;
             }
 
