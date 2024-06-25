@@ -65,53 +65,6 @@ class Promise
     protected int $startTime;
 
     /**
-     * New Promise constructor.
-     *
-     * @param Closure $callback The Promise callback.
-     * @param bool $sync Whether to execute the Promise synchronously.
-     */
-    public function __construct(Closure $callback, bool $sync = false)
-    {
-        $this->callback = $callback;
-
-        if ($sync) {
-            return $this->exec();
-        }
-
-        socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $sockets);
-        [$parentSocket, $childSocket] = $sockets;
-
-        pcntl_async_signals(true);
-
-        $pid = pcntl_fork();
-
-        if ($pid === 0) {
-            // child
-            socket_close($childSocket);
-
-            $this->exec();
-
-            $data = serialize([
-                'isResolved' => $this->isResolved,
-                'isRejected' => $this->isRejected,
-                'resolvedValue' => $this->resolvedValue,
-                'rejectedReason' => $this->rejectedReason,
-            ]);
-
-            socket_write($parentSocket, $data);
-            socket_close($parentSocket);
-            exit;
-        }
-
-        // parent
-        socket_close($parentSocket);
-
-        $this->startTime = time();
-        $this->pid = $pid;
-        $this->socket = $childSocket;
-    }
-
-    /**
      * Wait for all promises to settle.
      *
      * @param array $promises The promises.
@@ -195,6 +148,53 @@ class Promise
         return new Promise(
             fn($resolve) => $resolve($value)
         );
+    }
+
+    /**
+     * New Promise constructor.
+     *
+     * @param Closure $callback The Promise callback.
+     * @param bool $sync Whether to execute the Promise synchronously.
+     */
+    public function __construct(Closure $callback, bool $sync = false)
+    {
+        $this->callback = $callback;
+
+        if ($sync) {
+            return $this->exec();
+        }
+
+        socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $sockets);
+        [$parentSocket, $childSocket] = $sockets;
+
+        pcntl_async_signals(true);
+
+        $pid = pcntl_fork();
+
+        if ($pid === 0) {
+            // child
+            socket_close($childSocket);
+
+            $this->exec();
+
+            $data = serialize([
+                'isResolved' => $this->isResolved,
+                'isRejected' => $this->isRejected,
+                'resolvedValue' => $this->resolvedValue,
+                'rejectedReason' => $this->rejectedReason,
+            ]);
+
+            socket_write($parentSocket, $data);
+            socket_close($parentSocket);
+            exit;
+        }
+
+        // parent
+        socket_close($parentSocket);
+
+        $this->startTime = time();
+        $this->pid = $pid;
+        $this->socket = $childSocket;
     }
 
     /**
