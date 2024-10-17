@@ -9,7 +9,6 @@ use Socket;
 use Throwable;
 
 use function array_fill;
-use function call_user_func;
 use function count;
 use function pcntl_async_signals;
 use function pcntl_fork;
@@ -214,7 +213,7 @@ class Promise
     public function finally(Closure $onFinally): static
     {
         if ($this->isSettled) {
-            call_user_func($onFinally);
+            $onFinally();
         } else {
             $this->finallyCallbacks[] = $onFinally;
         }
@@ -327,7 +326,7 @@ class Promise
     {
         if ($onFulfilled) {
             if ($this->isResolved) {
-                call_user_func($onFulfilled, $this->resolvedValue);
+                $onFulfilled($this->resolvedValue);
             } else if (!$this->isSettled) {
                 $this->fulfilledCallbacks[] = $onFulfilled;
             }
@@ -335,7 +334,7 @@ class Promise
 
         if ($onRejected) {
             if ($this->isRejected) {
-                call_user_func($onRejected, $this->rejectedReason);
+                $onRejected($this->rejectedReason);
             } else if (!$this->isSettled) {
                 $this->rejectedCallbacks[] = $onRejected;
             }
@@ -365,7 +364,7 @@ class Promise
                             $this->resolvedValue = static::await($this->resolvedValue);
                         }
 
-                        $this->resolvedValue = call_user_func($onFulfilled, $this->resolvedValue);
+                        $this->resolvedValue = $onFulfilled($this->resolvedValue);
                     } catch (Throwable $e) {
                         $this->isRejected = true;
                         $this->isResolved = false;
@@ -379,7 +378,7 @@ class Promise
             if ($this->isRejected) {
                 foreach ($this->rejectedCallbacks as $onRejected) {
                     try {
-                        call_user_func($onRejected, $this->rejectedReason);
+                        $onRejected($this->rejectedReason);
                     } catch (Throwable $e) {
                         $this->rejectedReason = $e->getMessage();
                     }
@@ -387,7 +386,7 @@ class Promise
             }
 
             foreach ($this->finallyCallbacks as $onFinally) {
-                call_user_func($onFinally);
+                $onFinally();
             }
         }
 
@@ -420,7 +419,7 @@ class Promise
         };
 
         try {
-            call_user_func($this->callback, $resolve, $reject);
+            ($this->callback)($resolve, $reject);
         } catch (Throwable $e) {
             $reject($e->getMessage());
         }
