@@ -4,315 +4,238 @@ declare(strict_types=1);
 namespace Fyre\Promise;
 
 use Closure;
+use Fyre\Promise\Internal\FulfilledPromise;
+use Fyre\Promise\Internal\RejectedPromise;
+use LogicException;
+use ReflectionFunction;
 use RuntimeException;
-use Socket;
 use Throwable;
-
-use function array_fill;
-use function count;
-use function pcntl_async_signals;
-use function pcntl_fork;
-use function pcntl_waitpid;
-use function pcntl_wifstopped;
-use function posix_get_last_error;
-use function posix_kill;
-use function posix_strerror;
-use function serialize;
-use function socket_close;
-use function socket_create_pair;
-use function socket_read;
-use function socket_write;
-use function time;
-use function unserialize;
-use function usleep;
-
-use const AF_UNIX;
-use const SIGKILL;
-use const SOCK_STREAM;
-use const WNOHANG;
-use const WUNTRACED;
 
 /**
  * Promise
  */
-class Promise
+class Promise implements PromiseInterface
 {
-    protected Closure $callback;
+    protected array $handlers = [];
 
-    protected array $finallyCallbacks = [];
-
-    protected array $fulfilledCallbacks = [];
-
-    protected bool $isRejected = false;
-
-    protected bool $isResolved = false;
-
-    protected bool $isSettled = false;
-
-    protected int $maxRunTime = 300;
-
-    protected int $pid;
-
-    protected array $rejectedCallbacks = [];
-
-    protected string|null $rejectedReason = null;
-
-    protected $resolvedValue;
-
-    protected Socket $socket;
-
-    protected int $startTime;
+    protected PromiseInterface|null $result = null;
 
     /**
-     * Wait for all promises to settle.
+     * Wait for all promises to resolve.
      *
-     * @param array $promises The promises.
-     * @return Promise The Promise.
+     * @param array $promisesOrValues The promises or values.
+     * @return PromiseInterface A new Promise.
      */
-    public static function all(array $promises = []): static
+    public static function all(iterable $promisesOrValues): PromiseInterface
     {
-        return new Promise(function(Closure $resolve, Closure $reject) use ($promises): void {
-            $count = count($promises);
-            $results = array_fill(0, $count, null);
+        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+            $values = [];
+            $rejected = false;
 
-            while ($promises !== []) {
-                foreach ($promises as $i => $promise) {
-                    $promise->poll();
+            while ($promisesOrValues !== []) {
+                foreach ($promisesOrValues as $i => $promiseOrValue) {
+                    if ($rejected) {
+                        if ($promiseOrValue instanceof AsyncPromise) {
+                            $promiseOrValue->catch(function(): void {});
+                        }
 
-                    if ($promise->isRejected()) {
-                        $reject($promise->getRejectedReason());
-
-                        return;
-                    }
-
-                    if ($promise->isResolved()) {
-                        $results[$i] = $promise->getResolvedValue();
-                        unset($promises[$i]);
+                        unset($promisesOrValues[$i]);
 
                         continue;
                     }
-                }
 
-                usleep(100000);
+                    if ($promiseOrValue instanceof AsyncPromise && !$promiseOrValue->poll()) {
+                        continue;
+                    }
+
+                    Promise::resolve($promiseOrValue)->then(
+                        function(mixed $value = null) use ($i, &$values): void {
+                            $values[$i] = $value;
+                        },
+                        function(Throwable|null $reason = null) use (&$rejected, $reject): void {
+                            $rejected = true;
+                            $reject($reason);
+                        }
+                    );
+
+                    unset($promisesOrValues[$i]);
+                }
             }
 
-            $resolve($results);
-        }, true);
+            if (!$rejected) {
+                $resolve($values);
+            }
+        });
     }
 
     /**
-     * Wait for a Promise to settle.
+     * Wait for any promise to resolve.
+     *
+     * @param array $promisesOrValues The promises or values.
+     * @return PromiseInterface A new Promise.
+     */
+    public static function any(iterable $promisesOrValues): PromiseInterface
+    {
+        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+            $resolved = false;
+
+            while ($promisesOrValues !== []) {
+                foreach ($promisesOrValues as $i => $promiseOrValue) {
+                    if ($resolved) {
+                        if ($promiseOrValue instanceof AsyncPromise) {
+                            $promiseOrValue->catch(function(): void {});
+                        }
+
+                        unset($promisesOrValues[$i]);
+
+                        continue;
+                    }
+
+                    if ($promiseOrValue instanceof AsyncPromise && !$promiseOrValue->poll()) {
+                        continue;
+                    }
+
+                    Promise::resolve($promiseOrValue)->then(
+                        function(mixed $value = null) use (&$resolved, $resolve): void {
+                            $resolved = true;
+                            $resolve($value);
+                        },
+                        function(): void {}
+                    );
+
+                    unset($promisesOrValues[$i]);
+                }
+            }
+
+            if (!$resolved) {
+                $reject();
+            }
+        });
+    }
+
+    /**
+     * Await the result of a Promise.
      *
      * @param Promise $promise The Promise.
      * @return mixed The resolved value.
-     *
-     * @throws RuntimeException If the Promise is rejected.
      */
-    public static function await(Promise $promise): mixed
+    public static function await(PromiseInterface $promise): mixed
     {
-        $promise->wait();
-
-        if ($promise->isRejected()) {
-            throw new RuntimeException($promise->getRejectedReason());
+        if ($promise instanceof AsyncPromise) {
+            $promise->wait();
         }
 
-        return $promise->getResolvedValue();
-    }
-
-    /**
-     * Create a Promise that rejects.
-     *
-     * @param string|null $reason The rejection reason.
-     * @return Promise The Promise.
-     */
-    public static function reject(string|null $reason = null): static
-    {
-        return new Promise(
-            fn($resolve, $reject) => $reject($reason)
+        $result = null;
+        $promise->then(
+            function(mixed $value) use (&$result): void {
+                $result = $value;
+            },
+            function(Throwable $e): void {
+                throw $e;
+            }
         );
+
+        return $result;
     }
 
     /**
-     * Create a Promise that resolves.
+     * Wait for the first promise to resolve.
      *
-     * @param mixed $value The resolved value.
-     * @return Promise The Promise.
+     * @param array $promisesOrValues The promises or values.
+     * @return PromiseInterface A new Promise.
      */
-    public static function resolve($value = null): static
+    public static function race(iterable $promisesOrValues): PromiseInterface
     {
-        if ($value instanceof Promise) {
+        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+            $settled = false;
+
+            while ($promisesOrValues !== []) {
+                foreach ($promisesOrValues as $i => $promiseOrValue) {
+                    if ($settled) {
+                        if ($promiseOrValue instanceof AsyncPromise) {
+                            $promiseOrValue->catch(function(): void {});
+                        }
+
+                        unset($promisesOrValues[$i]);
+
+                        continue;
+                    }
+
+                    if ($promiseOrValue instanceof AsyncPromise && !$promiseOrValue->poll()) {
+                        continue;
+                    }
+
+                    Promise::resolve($promiseOrValue)->then($resolve, $reject)->finally(function() use (&$settled): void {
+                        $settled = true;
+                    });
+
+                    unset($promisesOrValues[$i]);
+                }
+            }
+        });
+    }
+
+    /**
+     * Create a rejected Promise.
+     *
+     * @param Throwable|null $reason The rejection reason.
+     * @return RejectedPromise The RejectedPromise.
+     */
+    public static function reject(Throwable|null $reason = null): RejectedPromise
+    {
+        return new RejectedPromise($reason ?? new RuntimeException());
+    }
+
+    /**
+     * Create a Promise resolved from a value.
+     *
+     * @param mixed $value The value to resolve.
+     * @return PromiseInterface The resolved Promise.
+     */
+    public static function resolve(mixed $value = null): PromiseInterface
+    {
+        if ($value instanceof PromiseInterface) {
             return $value;
         }
 
-        return new Promise(
-            fn($resolve) => $resolve($value)
-        );
+        return new FulfilledPromise($value);
     }
 
     /**
      * New Promise constructor.
      *
      * @param Closure $callback The Promise callback.
-     * @param bool $sync Whether to execute the Promise synchronously.
      */
-    public function __construct(Closure $callback, bool $sync = false)
+    public function __construct(Closure $callback)
     {
-        $this->callback = $callback;
-
-        if ($sync) {
-            return $this->exec();
-        }
-
-        socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $sockets);
-        [$parentSocket, $childSocket] = $sockets;
-
-        pcntl_async_signals(true);
-
-        $pid = pcntl_fork();
-
-        if ($pid === 0) {
-            // child
-            socket_close($childSocket);
-
-            $this->exec();
-
-            $data = serialize([
-                'isResolved' => $this->isResolved,
-                'isRejected' => $this->isRejected,
-                'resolvedValue' => $this->resolvedValue,
-                'rejectedReason' => $this->rejectedReason,
-            ]);
-
-            socket_write($parentSocket, $data);
-            socket_close($parentSocket);
-            exit;
-        }
-
-        // parent
-        socket_close($parentSocket);
-
-        $this->startTime = time();
-        $this->pid = $pid;
-        $this->socket = $childSocket;
+        $this->call($callback);
     }
 
     /**
      * Execute a callback if the Promise is rejected.
+     *
+     * @param Closure $onRejected The rejected callback.
+     * @return PromiseInterface A new Promise.
      */
-    public function catch(Closure $onRejected): static
+    public function catch(Closure $onRejected): PromiseInterface
     {
         return $this->then(null, $onRejected);
     }
 
     /**
-     * Execute a callback when the Promise is settled.
+     * Execute a callback once the Promise is settled.
      *
-     * @param Closure|null $onFinally The settled callback.
-     * @return Promise The Promise.
+     * @param Closure $onFinally The settled callback.
+     * @return PromiseInterface A new Promise.
      */
-    public function finally(Closure $onFinally): static
+    public function finally(Closure $onFinally): PromiseInterface
     {
-        if ($this->isSettled) {
-            $onFinally();
-        } else {
-            $this->finallyCallbacks[] = $onFinally;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Get the rejected reason.
-     *
-     * @return string|null The rejected reason.
-     */
-    public function getRejectedReason(): string|null
-    {
-        return $this->rejectedReason;
-    }
-
-    /**
-     * Get the resolved value.
-     *
-     * @return mixed The resolved value.
-     */
-    public function getResolvedValue(): mixed
-    {
-        return $this->resolvedValue;
-    }
-
-    /**
-     * Determine whether the Promise was rejected.
-     *
-     * @return bool TRUE if the Promise was rejected, otherwise FALSE.
-     */
-    public function isRejected(): bool
-    {
-        return $this->isRejected;
-    }
-
-    /**
-     * Determine whether the Promise has resolved.
-     *
-     * @return bool TRUE if the Promise has resolved, otherwise FALSE.
-     */
-    public function isResolved(): bool
-    {
-        return $this->isResolved;
-    }
-
-    /**
-     * Determine whether the Promise has settled.
-     *
-     * @return bool TRUE if the Promise has settled, otherwise FALSE.
-     */
-    public function isSettled(): bool
-    {
-        return $this->isSettled;
-    }
-
-    /**
-     * Poll the child process to determine if the Promise has settled.
-     *
-     * @return bool TRUE if the Promise has settled, otherwise FALSE.
-     *
-     * @throws RuntimeException if there is a problem handling the child process.
-     */
-    public function poll(): bool
-    {
-        if ($this->isSettled) {
-            return true;
-        }
-
-        $processStatus = pcntl_waitpid($this->pid, $status, WNOHANG | WUNTRACED);
-
-        if ($processStatus === 0) {
-            if ($this->startTime + $this->maxRunTime < time() || pcntl_wifstopped($status)) {
-                if (!posix_kill($this->pid, SIGKILL)) {
-                    $lastError = posix_get_last_error();
-                    $lastErrorString = posix_strerror($lastError);
-                    throw new RuntimeException('Failed to kill '.$this->pid.' - '.$lastErrorString);
-                }
-            }
-
-            return false;
-        }
-
-        if ($processStatus !== $this->pid) {
-            throw new RuntimeException('Could not reliably manage process '.$this->pid);
-        }
-
-        $result = socket_read($this->socket, 4096);
-        $output = unserialize($result);
-        socket_close($this->socket);
-
-        $this->isSettled = true;
-        $this->isRejected = $output['isRejected'];
-        $this->isResolved = $output['isResolved'];
-        $this->rejectedReason = $output['rejectedReason'];
-        $this->resolvedValue = $output['resolvedValue'];
-
-        return true;
+        return $this->then(
+            fn(mixed $value): PromiseInterface => Promise::resolve($onFinally())
+                ->then(fn(): mixed => $value),
+            fn(Throwable $reason): PromiseInterface => Promise::resolve($onFinally())
+                ->then(fn(): RejectedPromise => Promise::reject($reason))
+        );
     }
 
     /**
@@ -320,108 +243,100 @@ class Promise
      *
      * @param Closure|null $onFulfilled The fulfilled callback.
      * @param Closure|null $onRejected The rejected callback.
-     * @return Promise The Promise.
+     * @return PromiseInterface A new Promise.
      */
-    public function then(Closure|null $onFulfilled = null, Closure|null $onRejected = null): static
+    public function then(Closure|null $onFulfilled, Closure|null $onRejected = null): PromiseInterface
     {
-        if ($onFulfilled) {
-            if ($this->isResolved) {
-                $onFulfilled($this->resolvedValue);
-            } else if (!$this->isSettled) {
-                $this->fulfilledCallbacks[] = $onFulfilled;
-            }
+        if ($this->result) {
+            return $this->result->then($onFulfilled, $onRejected);
         }
 
-        if ($onRejected) {
-            if ($this->isRejected) {
-                $onRejected($this->rejectedReason);
-            } else if (!$this->isSettled) {
-                $this->rejectedCallbacks[] = $onRejected;
-            }
-        }
+        return new Promise(
+            function(Closure $resolve, Closure $reject) use ($onFulfilled, $onRejected): void {
+                $this->handlers[] = function(PromiseInterface $promise) use ($resolve, $reject, $onFulfilled, $onRejected): void {
+                    $promise = $promise->then($onFulfilled, $onRejected);
 
-        return $this;
+                    if ($promise instanceof Promise && $promise->result) {
+                        $promise->handlers[] = function(Promise $promise) use ($resolve, $reject): void {
+                            $promise->then($resolve, $reject);
+                        };
+                    } else {
+                        $promise->then($resolve, $reject);
+                    }
+                };
+            }
+        );
     }
 
     /**
-     * Wait for the Promise to settle.
+     * Call the Promise callback.
      *
-     * @return Promise The Promise.
+     * @param Closure $callback The Promise callback.
      */
-    public function wait(): static
+    protected function call(Closure $callback): void
     {
-        while (!$this->isSettled) {
-            if (!$this->poll()) {
-                usleep(100000);
-
-                continue;
-            }
-
-            if ($this->isResolved) {
-                foreach ($this->fulfilledCallbacks as $onFulfilled) {
-                    try {
-                        if ($this->resolvedValue instanceof Promise) {
-                            $this->resolvedValue = static::await($this->resolvedValue);
-                        }
-
-                        $this->resolvedValue = $onFulfilled($this->resolvedValue);
-                    } catch (Throwable $e) {
-                        $this->isRejected = true;
-                        $this->isResolved = false;
-                        $this->rejectedReason = $e->getMessage();
-                        $this->resolvedValue = null;
-                        break;
-                    }
-                }
-            }
-
-            if ($this->isRejected) {
-                foreach ($this->rejectedCallbacks as $onRejected) {
-                    try {
-                        $onRejected($this->rejectedReason);
-                    } catch (Throwable $e) {
-                        $this->rejectedReason = $e->getMessage();
-                    }
-                }
-            }
-
-            foreach ($this->finallyCallbacks as $onFinally) {
-                $onFinally();
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Execute the callback.
-     */
-    protected function exec(): void
-    {
-        $resolve = function($value = null): void {
-            if ($this->isSettled) {
-                return;
-            }
-
-            $this->isSettled = true;
-            $this->isResolved = true;
-            $this->resolvedValue = $value;
-        };
-
-        $reject = function(string|null $reason = null): void {
-            if ($this->isSettled) {
-                return;
-            }
-
-            $this->isSettled = true;
-            $this->isRejected = true;
-            $this->rejectedReason = $reason;
-        };
+        $reflect = new ReflectionFunction($callback);
+        $paramCount = $reflect->getNumberOfParameters();
 
         try {
-            ($this->callback)($resolve, $reject);
+            if ($paramCount === 0) {
+                $callback();
+            } else {
+                $target = & $this;
+
+                $callback(
+                    function(mixed $value = null) use (&$target): void {
+                        if (!$target) {
+                            return;
+                        }
+
+                        $target->settle(static::resolve($value));
+                        $target = null;
+                    },
+                    function(Throwable|null $reason = null) use (&$target): void {
+                        if (!$target || $target->result) {
+                            return;
+                        }
+
+                        $target = null;
+
+                        $this->settle(static::reject($reason));
+                    }
+                );
+            }
         } catch (Throwable $e) {
-            $reject($e->getMessage());
+            $this->settle(static::reject($e));
+        }
+    }
+
+    /**
+     * Settle the resulting Promise.
+     *
+     * @param PromiseInterface $result The resulting Promise.
+     *
+     * @throws LogicException If a promise is resolved with itself.
+     */
+    protected function settle(PromiseInterface $result): void
+    {
+        if ($this->result) {
+            throw new LogicException('Cannot resolve a promise that has already settled.');
+        }
+
+        while ($result instanceof self && $result->result) {
+            $result = $result->result;
+        }
+
+        if ($result === $this) {
+            $result = Promise::reject(new LogicException('Cannot resolve a promise with itself.'));
+        }
+
+        $handlers = $this->handlers;
+
+        $this->handlers = [];
+        $this->result = $result;
+
+        foreach ($handlers as $handle) {
+            $handle($result);
         }
     }
 }

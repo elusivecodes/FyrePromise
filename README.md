@@ -1,12 +1,15 @@
 # FyrePromise
 
-**FyrePromise** is a free, opens-source promise library for *PHP*.
+**FyrePromise** is a free, open-source promise library for *PHP*.
+
+It is a modern library, and features support for synchronous aand asynchronous promises.
 
 
 ## Table Of Contents
 - [Installation](#installation)
 - [Promise Creation](#promise-creation)
-- [Methods](#methods)
+- [Promise Methods](#promise-methods)
+- [Async](#async)
 - [Static Methods](#static-methods)
 
 
@@ -29,10 +32,9 @@ use Fyre\Promise\Promise;
 ## Promise Creation
 
 - `$callback` is a *Closure*.
-- `$sync` is a boolean indicating whether to execute the *Promise* synchronously, and will default to *false*.
 
 ```php
-$promise = new Promise($callback, $sync);
+$promise = new Promise($callback);
 ```
 
 The `$callback` should be expressed in the following format:
@@ -56,6 +58,8 @@ Execute a callback if the *Promise* is rejected.
 $promise->catch($onRejected);
 ```
 
+This method will return a new *Promise*.
+
 **Finally**
 
 Execute a callback when the *Promise* is settled.
@@ -66,53 +70,7 @@ Execute a callback when the *Promise* is settled.
 $promise->finally($onFinally);
 ```
 
-**Get Rejected Reason**
-
-Get the rejected reason.
-
-```php
-$rejectedReason = $promise->getRejectedReason();
-```
-
-**Get Resolved Value**
-
-Get the resolved value.
-
-```php
-$resolvedValue = $promise->getResolvedValue();
-```
-
-**Is Rejected**
-
-Determine whether the *Promise* was rejected.
-
-```php
-$isRejected = $promise->isRejected();
-```
-
-**Is Resolved**
-
-Determine whether the *Promise* has resolved.
-
-```php
-$isResolved = $promise->isResolved();
-```
-
-**Is Settled**
-
-Determine whether the *Promise* has settled.
-
-```php
-$isSettled = $promise->isSettled();
-```
-
-**Poll**
-
-Poll the child process to determine if the *Promise* has settled.
-
-```php
-$isSettled = $promise->poll();
-```
+This method will return a new *Promise*.
 
 **Then**
 
@@ -125,9 +83,44 @@ Execute a callback when the *Promise* is resolved.
 $promise->then($onFulfilled, $onRejected);
 ```
 
+This method will return a new *Promise*.
+
+## Async
+
+The `\Fyre\Promise\AsyncPromise` class extends the *Promise* class, while providing additional methods for handling asynchronous operations.
+
+```php
+use \Fyre\Promise\AsyncPromise;
+
+$promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
+    // this will be executed on a forked process
+    sleep(3);
+
+    $resolve(1);
+})->then(function(int $value): void {
+    // this will be executed on the main thread
+
+    echo $value;
+});
+
+$promise->wait();
+```
+
+**Cancel**
+
+Cancel the pending *AsyncPromise*.
+
+- `$message` is a string representing the cancellation message.
+
+```php
+$promise->cancel($message);
+```
+
+A cancelled promise will reject with a `Fyre\Promise\Exceptions\CancelledPromiseException`.
+
 **Wait**
 
-Wait for the *Promise* to settle.
+Wait for the *AsyncPromise* to settle.
 
 ```php
 $promise->wait();
@@ -136,15 +129,29 @@ $promise->wait();
 
 ## Static Methods
 
-**All**
+**Any**
 
-Wait for all promises to settle.
+Wait for any promise to resolve.
 
-- `$promises` is an array containing the promises to wait for.
+- `$promises` is an iterable containing the promises or values to wait for.
 
 ```php
-Promise::all($promises);
+$promise = Promise::any($promises);
 ```
+
+This method will return a new *Promise*.
+
+**All**
+
+Wait for all promises to resolve.
+
+- `$promises` is an iterable containing the promises or values to wait for.
+
+```php
+$promise = Promise::all($promises);
+```
+
+This method will return a new *Promise*.
 
 **Await**
 
@@ -153,14 +160,30 @@ Wait for a *Promise* to settle.
 - `$promise` is the *Promise* to wait for.
 
 ```php
-$resolvedValue = Promise::await($promise);
+try {
+    $resolvedValue = Promise::await($promise);
+} catch (Throwable $reason) {
+    //...
+}
 ```
+
+**Race**
+
+Wait for the first promise to resolve.
+
+- `$promises` is an iterable containing the promises or values to wait for.
+
+```php
+$promise = Promise::all($promises);
+```
+
+This method will return a new *Promise*.
 
 **Reject**
 
 Create a *Promise* that rejects.
 
-- `$reason` is a string representing the rejected reason, and will default to *null*.
+- `$reason` is a *Throwable* representing the rejected reason, and will default to *null*.
 
 ```php
 $promise = Promise::reject($reason);

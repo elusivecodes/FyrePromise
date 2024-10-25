@@ -4,279 +4,302 @@ declare(strict_types=1);
 namespace Tests;
 
 use Closure;
+use Exception;
 use Fyre\Promise\Promise;
+use Fyre\Promise\PromiseInterface;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
+use Throwable;
 
 final class PromiseTest extends TestCase
 {
-    public function testAwait(): void
+    public function testCatch(): void
     {
-        $promise = new Promise(function(Closure $resolve): void {
-            $resolve('test');
-        });
-
-        $this->assertSame(
-            'test',
-            Promise::await($promise)
-        );
-    }
-
-    public function testAwaitRejection(): void
-    {
-        $this->expectException(RuntimeException::class);
-
-        $promise = new Promise(function(Closure $resolve, Closure $reject): void {
-            $reject('test');
-        });
-
-        Promise::await($promise);
-    }
-
-    public function testCallbackException(): void
-    {
-        $promise = new Promise(function(Closure $resolve, Closure $reject): void {
-            throw new RuntimeException('test');
-        });
-
-        $promise->wait();
-
-        $this->assertSame(
-            'test',
-            $promise->getRejectedReason()
-        );
-    }
-
-    public function testCanChainRejectedReason(): void
-    {
-        Promise::reject('test')
-            ->then(function(): void {
-                $this->fail();
-            })
-            ->catch(function(string $reason): void {
-                $this->assertSame(
-                    'test',
-                    $reason
-                );
-            })
-            ->wait();
-    }
-
-    public function testCatchAfterRejected(): void
-    {
-        $promise = Promise::reject();
-
-        $promise->wait();
-
-        $promise->catch(function(): void {
-            $this->assertTrue(
-                true
-            );
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            $reject();
+        }))->catch(function(): void {
+            $this->assertTrue(true);
         });
     }
 
-    public function testFinally(): void
-    {
-        Promise::resolve()
-            ->finally(function(): void {
-                $this->assertTrue(
-                    true
-                );
-            })
-            ->wait();
-    }
-
-    public function testFinallyAfterSettled(): void
-    {
-        $promise = Promise::resolve();
-
-        $promise->wait();
-
-        $promise->finally(function(): void {
-            $this->assertTrue(
-                true
-            );
-        });
-    }
-
-    public function testFinallyRejection(): void
+    /**
+     * @doesNotPerformAssertions
+     */
+    public function testCatchCatch(): void
     {
         Promise::reject()
-            ->finally(function(): void {
-                $this->assertTrue(
-                    true
-                );
-            })
-            ->wait();
+            ->catch(function(): void {})
+            ->catch(function(): void {
+                $this->fail();
+            });
     }
 
-    public function testReject(): void
-    {
-        $promise = new Promise(function(Closure $resolve, Closure $reject): void {
-            $reject();
-        });
-
-        $promise->wait();
-
-        $this->assertTrue(
-            $promise->isRejected()
-        );
-
-        $this->assertTrue(
-            $promise->isSettled()
-        );
-    }
-
-    public function testRejectCatchException(): void
+    public function testCatchCatchException(): void
     {
         Promise::reject()
             ->catch(function(): void {
-                throw new RuntimeException('test');
+                throw new Exception('test');
             })
-            ->catch(function(string $reason): void {
+            ->catch(function(Throwable $reason): void {
                 $this->assertSame(
                     'test',
-                    $reason
+                    $reason->getMessage()
                 );
-            })
-            ->wait();
+            });
     }
 
-    public function testRejectReason(): void
+    public function testCatchException(): void
     {
-        $promise = new Promise(function(Closure $resolve, Closure $reject): void {
-            $reject('test');
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            throw new Exception('test');
+        }))->catch(function(Throwable $reason): void {
+            $this->assertSame(
+                'test',
+                $reason->getMessage()
+            );
         });
-
-        $promise->wait();
-
-        $this->assertSame(
-            'test',
-            $promise->getRejectedReason()
-        );
     }
 
-    public function testResolve(): void
+    public function testCatchFinally(): void
+    {
+        Promise::reject()
+            ->catch(function(): void {})
+            ->finally(function(): void {
+                $this->assertTrue(true);
+            });
+    }
+
+    public function testCatchReason(): void
+    {
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            $reject(new Exception('test'));
+        }))->catch(function(Throwable $reason): void {
+            $this->assertSame(
+                'test',
+                $reason->getMessage()
+            );
+        });
+    }
+
+    public function testCatchThen(): void
+    {
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            throw new Exception();
+        }))->catch(function(): int {
+            return 1;
+        })->then(function(int $value) {
+            $this->assertSame(
+                1,
+                $value
+            );
+        });
+    }
+
+    public function testCatchThenCatch(): void
+    {
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            throw new Exception();
+        }))->catch(function(): void {})->then(function() {
+            throw new Exception('test');
+        })->catch(function(Throwable $reason): void {
+            $this->assertSame(
+                'test',
+                $reason->getMessage()
+            );
+        });
+    }
+
+    public function testCatchThenPromise(): void
+    {
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            throw new Exception();
+        }))->catch(function(): PromiseInterface {
+            return Promise::resolve(1);
+        })->then(function(int $value) {
+            $this->assertSame(
+                1,
+                $value
+            );
+        });
+    }
+
+    public function testMultipleThen(): void
     {
         $promise = new Promise(function(Closure $resolve): void {
-            $resolve();
+            $resolve(1);
         });
 
-        $promise->wait();
+        $results = [];
 
-        $this->assertTrue(
-            $promise->isResolved()
-        );
+        $promise->then(function(int $value) use (&$results): void {
+            $results[] = $value;
+        });
 
-        $this->assertTrue(
-            $promise->isSettled()
-        );
-    }
-
-    public function testResolveThen(): void
-    {
-        $promise = Promise::resolve(1)
-            ->then(fn(int $result): int => $result + 1);
-
-        $promise->wait();
+        $promise->then(function(int $value) use (&$results): void {
+            $results[] = $value + 1;
+        });
 
         $this->assertSame(
-            2,
-            $promise->getResolvedValue()
+            [1, 2],
+            $results
         );
     }
 
-    public function testResolveThenChain(): void
+    public function testThen(): void
     {
-        $promise = Promise::resolve()
-            ->then(fn(): int => 1)
-            ->then(fn(int $result): int => $result + 1);
+        (new Promise(function(Closure $resolve): void {
+            $resolve();
+        }))->then(function(): void {
+            $this->assertTrue(true);
+        });
+    }
 
-        $promise->wait();
+    public function testThenCatch(): void
+    {
+        Promise::reject(new Exception('test'))
+            ->then(function(): void {
+                $this->fail();
+            })
+            ->catch(function(Throwable $reason): void {
+                $this->assertSame(
+                    'test',
+                    $reason->getMessage()
+                );
+            });
+    }
+
+    public function testThenCatchFinallyThenCatchFinally(): void
+    {
+        $results = [];
+
+        Promise::resolve(1)
+            ->then(function(int $value) use (&$results): int {
+                $results[] = $value;
+
+                return 2;
+            })
+            ->catch(function(): void {
+                $this->fail();
+            })
+            ->finally(function() use (&$results): void {
+                $results[] = 3;
+            })
+            ->then(function(int $value) use (&$results): int {
+                $results[] = $value;
+
+                return 4;
+            })
+            ->catch(function(): void {
+                $this->fail();
+            })
+            ->finally(function() use (&$results): void {
+                $results[] = 5;
+            });
 
         $this->assertSame(
-            2,
-            $promise->getResolvedValue()
+            [1, 3, 2, 5],
+            $results
         );
     }
 
-    public function testResolveThenException(): void
+    public function testThenFinally(): void
+    {
+        Promise::resolve()
+            ->then(function(): void {})
+            ->finally(function(): void {
+                $this->assertTrue(true);
+            });
+    }
+
+    public function testThenResolve(): void
+    {
+        (new Promise(function(Closure $resolve): void {
+            $resolve(1);
+        }))->then(function(int $value): void {
+            $this->assertSame(
+                1,
+                $value
+            );
+        });
+    }
+
+    public function testThenThen(): void
+    {
+        Promise::resolve(1)
+            ->then(fn(int $value): int => $value + 1)
+            ->then(function(int $value): void {
+                $this->assertSame(
+                    2,
+                    $value
+                );
+            });
+    }
+
+    public function testThenThenCatch(): void
     {
         Promise::resolve()
             ->then(function(): void {
-                throw new RuntimeException('test');
+                throw new Exception('test');
             })
             ->then(function(): void {
                 $this->fail();
             })
-            ->catch(function(string $reason): void {
+            ->catch(function(Throwable $reason): void {
                 $this->assertSame(
                     'test',
-                    $reason
+                    $reason->getMessage()
                 );
-            })
-            ->wait();
+            });
     }
 
-    public function testResolveThenPromise(): void
+    public function testThenThenPromise(): void
     {
-        $promise = Promise::resolve()
-            ->then(fn(): Promise => Promise::resolve(1))
-            ->then(fn(int $result): int => $result + 1);
-
-        $promise->wait();
-
-        $this->assertSame(
-            2,
-            $promise->getResolvedValue()
-        );
+        Promise::resolve()
+            ->then(fn(): PromiseInterface => Promise::resolve(1))
+            ->then(function(int $value): void {
+                $this->assertSame(
+                    1,
+                    $value
+                );
+            });
     }
 
-    public function testResolveValue(): void
+    public function testThenThenThen(): void
     {
-        $promise = new Promise(function(Closure $resolve): void {
-            $resolve('test');
+        Promise::resolve()
+            ->then(fn(): int => 1)
+            ->then(fn(int $value): int => $value + 1)
+            ->then(function(int $value): void {
+                $this->assertSame(
+                    2,
+                    $value
+                );
+            });
+    }
+
+    public function testUncaughtCaughtException(): void
+    {
+        $this->expectException(Exception::class);
+
+        Promise::reject()->catch(function() {
+            throw new Exception();
         });
-
-        $promise->wait();
-
-        $this->assertSame(
-            'test',
-            $promise->getResolvedValue()
-        );
     }
 
-    public function testRunInParallel(): void
+    public function testUncaughtException(): void
     {
-        $promise1 = new Promise(function(Closure $resolve): void {
-            sleep(1);
-            $resolve();
-        });
+        $this->expectException(Exception::class);
 
-        $promise2 = new Promise(function(Closure $resolve): void {
-            sleep(1);
-            $resolve();
-        });
-
-        $start = microtime(true);
-
-        $all = Promise::all([$promise1, $promise2]);
-
-        $finish = microtime(true);
-
-        $this->assertLessThan(1500, $finish - $start);
+        (new Promise(function(Closure $resolve, Closure $reject): void {
+            $reject(new Exception('test'));
+        }));
     }
 
-    public function testThenAfterResolved(): void
+    public function testUncaughtThenException(): void
     {
-        $promise = Promise::resolve();
+        $this->expectException(Exception::class);
 
-        $promise->wait();
-
-        $promise->then(function(): void {
-            $this->assertTrue(
-                true
-            );
+        Promise::resolve(1)->then(function() {
+            throw new Exception();
         });
     }
 }
