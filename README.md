@@ -2,14 +2,14 @@
 
 **FyrePromise** is a free, open-source promise library for *PHP*.
 
-It is a modern library, and features support for synchronous aand asynchronous promises.
+It is a modern library, and features support for synchronous and asynchronous promises.
 
 
 ## Table Of Contents
 - [Installation](#installation)
 - [Promise Creation](#promise-creation)
 - [Promise Methods](#promise-methods)
-- [Async](#async)
+- [Async Promises](#async-promises)
 - [Static Methods](#static-methods)
 
 
@@ -85,7 +85,7 @@ $promise->then($onFulfilled, $onRejected);
 
 This method will return a new *Promise*.
 
-## Async
+## Async Promises
 
 The `\Fyre\Promise\AsyncPromise` class extends the *Promise* class, while providing additional methods for handling asynchronous operations.
 
