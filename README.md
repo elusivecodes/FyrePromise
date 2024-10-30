@@ -7,8 +7,8 @@ It is a modern library, and features support for synchronous and asynchronous pr
 
 ## Table Of Contents
 - [Installation](#installation)
-- [Promise Creation](#promise-creation)
-- [Promise Methods](#promise-methods)
+- [Basic Usage](#basic-usage)
+- [Methods](#methods)
 - [Async Promises](#async-promises)
 - [Static Methods](#static-methods)
 
@@ -29,7 +29,7 @@ use Fyre\Promise\Promise;
 ```
 
 
-## Promise Creation
+## Basic Usage
 
 - `$callback` is a *Closure*.
 
