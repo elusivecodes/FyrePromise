@@ -21,11 +21,10 @@ final class PromiseTest extends TestCase
         });
     }
 
-    /**
-     * @doesNotPerformAssertions
-     */
     public function testCatchCatch(): void
     {
+        $this->expectNotToPerformAssertions();
+
         Promise::reject()
             ->catch(function(): void {})
             ->catch(function(): void {
