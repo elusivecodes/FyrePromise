@@ -13,17 +13,14 @@ use Throwable;
  */
 class FulfilledPromise implements PromiseInterface
 {
-    protected mixed $value;
-
     /**
      * New FulfilledPromise constructor.
      *
      * @param mixed $value The resolved value.
      */
-    public function __construct(mixed $value)
-    {
-        $this->value = $value;
-    }
+    public function __construct(
+        protected mixed $value
+    ) {}
 
     /**
      * Execute a callback if the Promise is rejected.

@@ -15,17 +15,14 @@ class RejectedPromise implements PromiseInterface
 {
     protected bool $handled = false;
 
-    protected Throwable $reason;
-
     /**
      * New RejectedPromise constructor.
      *
      * @param Throwable $reason The rejection reason.
      */
-    public function __construct(Throwable $reason)
-    {
-        $this->reason = $reason;
-    }
+    public function __construct(
+        protected Throwable $reason
+    ) {}
 
     /**
      * New RejectedPromise destructor.
