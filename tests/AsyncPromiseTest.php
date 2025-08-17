@@ -8,6 +8,7 @@ use Exception;
 use Fyre\Promise\AsyncPromise;
 use Fyre\Promise\Promise;
 use Fyre\Promise\PromiseInterface;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
@@ -15,6 +16,7 @@ use function sleep;
 
 final class AsyncPromiseTest extends TestCase
 {
+    #[RunInSeparateProcess]
     public function testAny(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve): void {
@@ -36,6 +38,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testAnyReject(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -60,6 +63,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testAnyRejectAfter(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve): void {
@@ -84,6 +88,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testAnyRejectAll(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -105,6 +110,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testAsync(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve): void {
@@ -129,6 +135,7 @@ final class AsyncPromiseTest extends TestCase
         $this->assertLessThan(1500, $time);
     }
 
+    #[RunInSeparateProcess]
     public function testAwait(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {
@@ -141,6 +148,7 @@ final class AsyncPromiseTest extends TestCase
         );
     }
 
+    #[RunInSeparateProcess]
     public function testAwaitRejection(): void
     {
         $this->expectException(Exception::class);
@@ -152,6 +160,7 @@ final class AsyncPromiseTest extends TestCase
         Promise::await($promise);
     }
 
+    #[RunInSeparateProcess]
     public function testCatch(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -165,6 +174,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testCatchReason(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -181,6 +191,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testCatchThen(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -199,6 +210,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testCatchThenCatch(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -217,6 +229,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testCatchThenPromise(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -235,6 +248,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testMultipleThen(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {
@@ -259,6 +273,7 @@ final class AsyncPromiseTest extends TestCase
         );
     }
 
+    #[RunInSeparateProcess]
     public function testRace(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve): void {
@@ -280,6 +295,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testRaceReject(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve, Closure $reject): void {
@@ -301,6 +317,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testRaceRejectAfter(): void
     {
         $promise1 = new AsyncPromise(function(Closure $resolve): void {
@@ -325,6 +342,7 @@ final class AsyncPromiseTest extends TestCase
             });
     }
 
+    #[RunInSeparateProcess]
     public function testThen(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {
@@ -338,6 +356,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testThenResolve(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {
@@ -354,6 +373,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testUncaughtException(): void
     {
         $this->expectException(Exception::class);
@@ -365,6 +385,7 @@ final class AsyncPromiseTest extends TestCase
         $promise->wait();
     }
 
+    #[RunInSeparateProcess]
     public function testWaitFinally(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {
@@ -378,6 +399,7 @@ final class AsyncPromiseTest extends TestCase
         });
     }
 
+    #[RunInSeparateProcess]
     public function testWaitThen(): void
     {
         $promise = new AsyncPromise(function(Closure $resolve): void {

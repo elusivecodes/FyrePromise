@@ -6,6 +6,7 @@ namespace Fyre\Promise;
 use Closure;
 use Fyre\Promise\Internal\FulfilledPromise;
 use Fyre\Promise\Internal\RejectedPromise;
+use Fyre\Utility\Traits\MacroTrait;
 use LogicException;
 use ReflectionFunction;
 use RuntimeException;
@@ -16,6 +17,8 @@ use Throwable;
  */
 class Promise implements PromiseInterface
 {
+    use MacroTrait;
+
     protected array $handlers = [];
 
     protected PromiseInterface|null $result = null;

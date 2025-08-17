@@ -7,8 +7,11 @@ use Closure;
 use Exception;
 use Fyre\Promise\Promise;
 use Fyre\Promise\PromiseInterface;
+use Fyre\Utility\Traits\MacroTrait;
 use PHPUnit\Framework\TestCase;
 use Throwable;
+
+use function class_uses;
 
 final class PromiseTest extends TestCase
 {
@@ -119,6 +122,14 @@ final class PromiseTest extends TestCase
                 $value
             );
         });
+    }
+
+    public function testMacroable(): void
+    {
+        $this->assertContains(
+            MacroTrait::class,
+            class_uses(Promise::class)
+        );
     }
 
     public function testMultipleThen(): void
