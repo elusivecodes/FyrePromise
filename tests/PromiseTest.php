@@ -8,9 +8,11 @@ use Exception;
 use Fyre\Promise\Promise;
 use Fyre\Promise\PromiseInterface;
 use Fyre\Utility\Traits\MacroTrait;
+use Fyre\Utility\Traits\StaticMacroTrait;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
+use function array_diff;
 use function class_uses;
 
 final class PromiseTest extends TestCase
@@ -126,9 +128,8 @@ final class PromiseTest extends TestCase
 
     public function testMacroable(): void
     {
-        $this->assertContains(
-            MacroTrait::class,
-            class_uses(Promise::class)
+        $this->assertEmpty(
+            array_diff([MacroTrait::class, StaticMacroTrait::class], class_uses(Promise::class))
         );
     }
 
