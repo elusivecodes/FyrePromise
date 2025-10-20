@@ -101,7 +101,7 @@ class AsyncPromise extends Promise
             $reflect = new ReflectionFunction($callback);
             $paramCount = $reflect->getNumberOfParameters();
 
-            $settle = function(Throwable|null $reason, mixed $value = null) use ($parentSocket): void {
+            $settle = static function(Throwable|null $reason, mixed $value = null) use ($parentSocket): void {
                 $data = serialize([$reason, $value]);
 
                 socket_write($parentSocket, $data);
@@ -113,7 +113,7 @@ class AsyncPromise extends Promise
                     $callback();
                 } else {
                     $callback(
-                        function(mixed $value = null) use (&$settle): void {
+                        static function(mixed $value = null) use (&$settle): void {
                             if (!$settle) {
                                 return;
                             }
@@ -121,7 +121,7 @@ class AsyncPromise extends Promise
                             $settle(null, $value);
                             $settle = null;
                         },
-                        function(Throwable|null $reason = null) use (&$settle): void {
+                        static function(Throwable|null $reason = null) use (&$settle): void {
                             if (!$settle) {
                                 return;
                             }

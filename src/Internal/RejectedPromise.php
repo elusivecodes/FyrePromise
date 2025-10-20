@@ -57,8 +57,8 @@ class RejectedPromise implements PromiseInterface
     {
         return $this->then(
             null,
-            fn(Throwable $reason): PromiseInterface => Promise::resolve($onFinally())
-                ->then(fn(): self => Promise::reject($reason))
+            static fn(Throwable $reason): PromiseInterface => Promise::resolve($onFinally())
+                ->then(static fn(): self => Promise::reject($reason))
         );
     }
 

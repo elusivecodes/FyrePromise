@@ -31,7 +31,7 @@ class Promise implements PromiseInterface
      */
     public static function all(iterable $promisesOrValues): PromiseInterface
     {
-        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+        return new Promise(static function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
             $values = [];
             $rejected = false;
 
@@ -39,7 +39,7 @@ class Promise implements PromiseInterface
                 foreach ($promisesOrValues as $i => $promiseOrValue) {
                     if ($rejected) {
                         if ($promiseOrValue instanceof AsyncPromise) {
-                            $promiseOrValue->catch(function(): void {});
+                            $promiseOrValue->catch(static function(): void {});
                         }
 
                         unset($promisesOrValues[$i]);
@@ -52,10 +52,10 @@ class Promise implements PromiseInterface
                     }
 
                     Promise::resolve($promiseOrValue)->then(
-                        function(mixed $value = null) use ($i, &$values): void {
+                        static function(mixed $value = null) use ($i, &$values): void {
                             $values[$i] = $value;
                         },
-                        function(Throwable|null $reason = null) use (&$rejected, $reject): void {
+                        static function(Throwable|null $reason = null) use (&$rejected, $reject): void {
                             $rejected = true;
                             $reject($reason);
                         }
@@ -79,14 +79,14 @@ class Promise implements PromiseInterface
      */
     public static function any(iterable $promisesOrValues): PromiseInterface
     {
-        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+        return new Promise(static function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
             $resolved = false;
 
             while ($promisesOrValues !== []) {
                 foreach ($promisesOrValues as $i => $promiseOrValue) {
                     if ($resolved) {
                         if ($promiseOrValue instanceof AsyncPromise) {
-                            $promiseOrValue->catch(function(): void {});
+                            $promiseOrValue->catch(static function(): void {});
                         }
 
                         unset($promisesOrValues[$i]);
@@ -99,11 +99,11 @@ class Promise implements PromiseInterface
                     }
 
                     Promise::resolve($promiseOrValue)->then(
-                        function(mixed $value = null) use (&$resolved, $resolve): void {
+                        static function(mixed $value = null) use (&$resolved, $resolve): void {
                             $resolved = true;
                             $resolve($value);
                         },
-                        function(): void {}
+                        static function(): void {}
                     );
 
                     unset($promisesOrValues[$i]);
@@ -130,10 +130,10 @@ class Promise implements PromiseInterface
 
         $result = null;
         $promise->then(
-            function(mixed $value) use (&$result): void {
+            static function(mixed $value) use (&$result): void {
                 $result = $value;
             },
-            function(Throwable $e): void {
+            static function(Throwable $e): void {
                 throw $e;
             }
         );
@@ -149,14 +149,14 @@ class Promise implements PromiseInterface
      */
     public static function race(iterable $promisesOrValues): PromiseInterface
     {
-        return new Promise(function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
+        return new Promise(static function(Closure $resolve, Closure $reject) use ($promisesOrValues): void {
             $settled = false;
 
             while ($promisesOrValues !== []) {
                 foreach ($promisesOrValues as $i => $promiseOrValue) {
                     if ($settled) {
                         if ($promiseOrValue instanceof AsyncPromise) {
-                            $promiseOrValue->catch(function(): void {});
+                            $promiseOrValue->catch(static function(): void {});
                         }
 
                         unset($promisesOrValues[$i]);
@@ -168,7 +168,7 @@ class Promise implements PromiseInterface
                         continue;
                     }
 
-                    Promise::resolve($promiseOrValue)->then($resolve, $reject)->finally(function() use (&$settled): void {
+                    Promise::resolve($promiseOrValue)->then($resolve, $reject)->finally(static function() use (&$settled): void {
                         $settled = true;
                     });
 
@@ -234,10 +234,10 @@ class Promise implements PromiseInterface
     public function finally(Closure $onFinally): PromiseInterface
     {
         return $this->then(
-            fn(mixed $value): PromiseInterface => Promise::resolve($onFinally())
-                ->then(fn(): mixed => $value),
-            fn(Throwable $reason): PromiseInterface => Promise::resolve($onFinally())
-                ->then(fn(): RejectedPromise => Promise::reject($reason))
+            static fn(mixed $value): PromiseInterface => Promise::resolve($onFinally())
+                ->then(static fn(): mixed => $value),
+            static fn(Throwable $reason): PromiseInterface => Promise::resolve($onFinally())
+                ->then(static fn(): RejectedPromise => Promise::reject($reason))
         );
     }
 
@@ -256,11 +256,11 @@ class Promise implements PromiseInterface
 
         return new Promise(
             function(Closure $resolve, Closure $reject) use ($onFulfilled, $onRejected): void {
-                $this->handlers[] = function(PromiseInterface $promise) use ($resolve, $reject, $onFulfilled, $onRejected): void {
+                $this->handlers[] = static function(PromiseInterface $promise) use ($resolve, $reject, $onFulfilled, $onRejected): void {
                     $promise = $promise->then($onFulfilled, $onRejected);
 
                     if ($promise instanceof Promise && $promise->result) {
-                        $promise->handlers[] = function(Promise $promise) use ($resolve, $reject): void {
+                        $promise->handlers[] = static function(Promise $promise) use ($resolve, $reject): void {
                             $promise->then($resolve, $reject);
                         };
                     } else {
@@ -288,7 +288,7 @@ class Promise implements PromiseInterface
                 $target = & $this;
 
                 $callback(
-                    function(mixed $value = null) use (&$target): void {
+                    static function(mixed $value = null) use (&$target): void {
                         if (!$target) {
                             return;
                         }

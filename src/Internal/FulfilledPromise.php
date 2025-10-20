@@ -42,8 +42,8 @@ class FulfilledPromise implements PromiseInterface
     public function finally(Closure $onFinally): PromiseInterface
     {
         return $this->then(
-            fn(mixed $value): PromiseInterface => Promise::resolve($onFinally())
-                ->then(fn(): mixed => $value)
+            static fn(mixed $value): PromiseInterface => Promise::resolve($onFinally())
+                ->then(static fn(): mixed => $value)
         );
     }
 
