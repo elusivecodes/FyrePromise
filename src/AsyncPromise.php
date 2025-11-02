@@ -5,6 +5,7 @@ namespace Fyre\Promise;
 
 use Closure;
 use Fyre\Promise\Exceptions\CancelledPromiseException;
+use Override;
 use ReflectionFunction;
 use RuntimeException;
 use Socket;
@@ -85,6 +86,7 @@ class AsyncPromise extends Promise
      *
      * @param Closure $callback The Promise callback.
      */
+    #[Override]
     protected function call(Closure $callback): void
     {
         socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $sockets);

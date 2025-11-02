@@ -9,6 +9,7 @@ use Fyre\Promise\Internal\RejectedPromise;
 use Fyre\Utility\Traits\MacroTrait;
 use Fyre\Utility\Traits\StaticMacroTrait;
 use LogicException;
+use Override;
 use ReflectionFunction;
 use RuntimeException;
 use Throwable;
@@ -222,6 +223,7 @@ class Promise implements PromiseInterface
      * @param Closure $onRejected The rejected callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function catch(Closure $onRejected): PromiseInterface
     {
         return $this->then(null, $onRejected);
@@ -233,6 +235,7 @@ class Promise implements PromiseInterface
      * @param Closure $onFinally The settled callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function finally(Closure $onFinally): PromiseInterface
     {
         return $this->then(
@@ -250,6 +253,7 @@ class Promise implements PromiseInterface
      * @param Closure|null $onRejected The rejected callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function then(Closure|null $onFulfilled, Closure|null $onRejected = null): PromiseInterface
     {
         if ($this->result) {

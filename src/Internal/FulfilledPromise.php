@@ -6,6 +6,7 @@ namespace Fyre\Promise\Internal;
 use Closure;
 use Fyre\Promise\Promise;
 use Fyre\Promise\PromiseInterface;
+use Override;
 use Throwable;
 
 /**
@@ -28,6 +29,7 @@ class FulfilledPromise implements PromiseInterface
      * @param Closure $onRejected The rejected callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function catch(Closure $onRejected): PromiseInterface
     {
         return $this;
@@ -39,6 +41,7 @@ class FulfilledPromise implements PromiseInterface
      * @param Closure $onFinally The settled callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function finally(Closure $onFinally): PromiseInterface
     {
         return $this->then(
@@ -54,6 +57,7 @@ class FulfilledPromise implements PromiseInterface
      * @param Closure|null $onRejected The rejected callback.
      * @return PromiseInterface A new Promise.
      */
+    #[Override]
     public function then(Closure|null $onFulfilled, Closure|null $onRejected = null): PromiseInterface
     {
         if ($onFulfilled === null) {
